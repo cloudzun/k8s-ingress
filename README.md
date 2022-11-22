@@ -77,7 +77,6 @@ NodeSelector添加ingress: "true"部署至指定节点
   nodeSelector:
     kubernetes.io/os: linux
     ingress: "true" #此处增加一行
-
 ```
 
 
@@ -192,3 +191,529 @@ systemd+ 1063763  0.0  0.3 143120 29232 ?        S    09:28   0:00 nginx: cache 
 root     1130900  0.0  0.0   8900   724 pts/0    S+   10:15   0:00 grep --color=auto nginx
 ```
 
+
+
+# 使用Ingress Nginx发布单个web服务
+
+
+
+## Nginx Web
+
+创建实例web服务
+
+```bash
+kubectl create ns study-ingress
+kubectl create deploy nginx --image=nginx -n  study-ingress
+kubectl expose deploy nginx --port 80 -n study-ingress
+```
+
+
+
+查看web服务实例细节
+
+```bash
+kubectl get pod -n study-ingress -o wide
+kubectl get svc -n study-ingress -o wide
+```
+
+```bash
+root@node1:~/ingress-nginx# kubectl get pod -n study-ingress -o wide
+NAME                     READY   STATUS    RESTARTS   AGE     IP               NODE    NOMINATED NODE   READINESS GATES
+nginx-85b98978db-x49zb   1/1     Running   0          2m45s   10.244.166.183   node1   <none>           <none>
+root@node1:~/ingress-nginx# kubectl get svc -n study-ingress -o wide
+NAME    TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)   AGE     SELECTOR
+nginx   ClusterIP   10.102.210.108   <none>        80/TCP    2m53s   app=nginx
+```
+
+
+
+尝试对服务进行访问
+
+```bash
+curl 10.102.210.108
+```
+
+```bash
+root@node1:~# curl 10.102.210.108
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+html { color-scheme: light dark; }
+body { width: 35em; margin: 0 auto;
+font-family: Tahoma, Verdana, Arial, sans-serif; }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html
+```
+
+
+
+创建指向上述服务的ingress
+
+```bash
+nano web-ingress.yaml
+```
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nginx-ingress
+  namespace: study-ingress
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: nginx.cloudzun.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: nginx
+            port:
+              number: 80
+        path: /
+        pathType: ImplementationSpecific
+```
+
+```bash
+kubectl create -f web-ingress.yaml
+```
+
+
+
+查看ingress
+
+```bash
+kubectl get ingress -n study-ingress
+```
+
+```bash
+root@node1:~# kubectl get ingress -n study-ingress
+NAME            CLASS   HOSTS                ADDRESS   PORTS   AGE
+nginx-ingress   nginx   nginx.cloudzun.com             80      10m
+```
+
+
+
+检查ingress配置
+
+```bash
+kubectl get pod -n ingress-nginx
+kubectl exec -it ingress-nginx-controller-btszm  -n ingress-nginx -- bash
+ls 
+grep  "nginx.cloudzun.com" nginx.conf
+```
+
+```bash
+root@node1:~# kubectl exec -it ingress-nginx-controller-btszm  -n ingress-nginx -- bash
+bash-5.1$ ls
+fastcgi.conf            koi-utf                 modsecurity             owasp-modsecurity-crs   uwsgi_params.default
+fastcgi.conf.default    koi-win                 modules                 scgi_params             win-utf
+fastcgi_params          lua                     nginx.conf              scgi_params.default
+fastcgi_params.default  mime.types              nginx.conf.default      template
+geoip                   mime.types.default      opentracing.json        uwsgi_params
+bash-5.1$ grep  "nginx.cloudzun.com" nginx.conf
+        ## start server nginx.cloudzun.com
+                server_name nginx.cloudzun.com ;
+        ## end server nginx.cloudzun.com
+```
+
+
+
+亦可查看更多配置
+
+```bash
+bash-5.1$ more nginx.conf
+
+# Configuration checksum: 2784066326814588111
+
+# setup custom paths that do not require root access
+pid /tmp/nginx/nginx.pid;
+
+daemon off;
+
+worker_processes 4;
+
+worker_rlimit_nofile 1047552;
+
+worker_shutdown_timeout 240s ;
+
+events {
+        multi_accept        on;
+        worker_connections  16384;
+        use                 epoll;
+
+}
+
+http {
+        lua_package_path "/etc/nginx/lua/?.lua;;";
+
+        lua_shared_dict balancer_ewma 10M;
+        lua_shared_dict balancer_ewma_last_touched_at 10M;
+        lua_shared_dict balancer_ewma_locks 1M;
+        lua_shared_dict certificate_data 20M;
+        lua_shared_dict certificate_servers 5M;
+        lua_shared_dict configuration_data 20M;
+        lua_shared_dict global_throttle_cache 10M;
+        lua_shared_dict ocsp_response_cache 5M;
+
+        init_by_lua_block {
+                collectgarbage("collect")
+
+                -- init modules
+                local ok, res
+
+--More-- (4% of 18301 bytes)
+```
+
+
+
+尝试在node1上进行访问
+
+```bash
+curl -H "Host:nginx.cloudzun.com" 192.168.1.232
+```
+
+```bash
+root@node1:~# curl -H "Host:nginx.cloudzun.com" 192.168.1.232
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+html { color-scheme: light dark; }
+body { width: 35em; margin: 0 auto;
+font-family: Tahoma, Verdana, Arial, sans-serif; }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+```
+
+
+
+修改host文件
+
+```bash
+cat >> /etc/hosts << EOF
+192.168.1.232	nginx.cloudzun.com
+192.168.1.233	nginx.cloudzun.com
+EOF
+```
+
+
+
+尝试直接使用域名进行访问
+
+```
+curl nginx.cloudzun.com
+```
+
+
+
+```bash
+root@node1~# curl nginx.cloudzun.com
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+html { color-scheme: light dark; }
+body { width: 35em; margin: 0 auto;
+font-family: Tahoma, Verdana, Arial, sans-serif; }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+```
+
+
+
+尝试在宿主机上进行访问
+
+![image-20221122112201707](README.assets/image-20221122112201707.png)
+
+## Katacoda Web
+
+
+
+创建包含katacoda deployment svc和ingress的一体成型yaml文件
+
+```bash
+nano kata-ingress.yaml
+```
+
+
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: katacoda
+  name: katacoda
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: katacoda
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: katacoda
+    spec:
+      containers:
+      - image: katacoda/docker-http-server
+        name: docker-http-server
+        resources: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: katacoda
+  name: katacoda
+spec:
+  ports:
+  - name: 80-80
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: katacoda
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kata-ingress
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: kata.cloudzun.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: katacoda
+            port:
+              number: 80
+        path: /
+        pathType: ImplementationSpecific
+```
+
+```bash
+kubectl apply -f kata-ingress.yaml
+```
+
+
+
+查看ingress
+
+```bash
+kubectl describe ingress kata-ingress
+```
+
+```bash
+root@node1:~# kubectl describe ingress kata-ingress
+Name:             kata-ingress
+Labels:           <none>
+Namespace:        default
+Address:
+Default backend:  default-http-backend:80 (<error: endpoints "default-http-backend" not found>)
+Rules:
+  Host               Path  Backends
+  ----               ----  --------
+  kata.cloudzun.com
+                     /   katacoda:80 (10.244.104.62:80,10.244.135.24:80,10.244.166.185:80)
+Annotations:         <none>
+Events:
+  Type    Reason  Age    From                      Message
+  ----    ------  ----   ----                      -------
+  Normal  Sync    3m19s  nginx-ingress-controller  Scheduled for sync
+  Normal  Sync    3m19s  nginx-ingress-controller  Scheduled for sync
+```
+
+
+
+编辑host
+
+```bash
+cat >> /etc/hosts << EOF
+192.168.1.232 kata.cloudzun.com
+192.168.1.233 kata.cloudzun.com
+EOF
+```
+
+
+
+本地访问
+
+```bash
+curl kata.cloudzun.com
+```
+
+```bash
+root@node1:~# curl kata.cloudzun.com
+<h1>This request was processed by host: katacoda-56dbd65b59-wr448</h1>
+root@node1:~# curl kata.cloudzun.com
+<h1>This request was processed by host: katacoda-56dbd65b59-tmgpd</h1>
+root@node1:~# curl kata.cloudzun.com
+<h1>This request was processed by host: katacoda-56dbd65b59-rm7cz</h1>
+```
+
+
+
+## Httpbin Service
+
+
+
+创建一体成型的yaml文件
+
+```bash
+nano httpbin-ingress.yaml
+```
+
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: httpbin
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: httpbin
+  labels:
+    app: httpbin
+    service: httpbin
+spec:
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 80
+  selector:
+    app: httpbin
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: httpbin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: httpbin
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: httpbin
+        version: v1
+    spec:
+      serviceAccountName: httpbin
+      containers:
+      - image: docker.io/kennethreitz/httpbin
+        imagePullPolicy: IfNotPresent
+        name: httpbin
+        ports:
+        - containerPort: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: httpbin-ingress
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: httpbin.cloudzun.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: httpbin
+            port:
+              number: 8000
+        path: /
+        pathType: ImplementationSpecific
+```
+
+```bash
+kubectl apply -f httpbin-ingress.yaml
+```
+
+
+
+更新hosts
+
+```bash
+cat >> /etc/hosts << EOF
+192.168.1.232 httpbin.cloudzun.com
+192.168.1.233 httpbin.cloudzun.com
+EOF
+```
+
+
+
+node上访问
+
+```bash
+curl http://httpbin.cloudzun.com/status/418
+```
+
+```bash
+root@node1:~# curl http://httpbin.cloudzun.com/status/418
+
+    -=[ teapot ]=-
+
+       _...._
+     .'  _ _ `.
+    | ."` ^ `". _,
+    \_;`"---"`|//
+      |       ;/
+      \_     _/
+        `"""`
+```
+
+
+
+浏览器上访问
+
+![image-20221122121413039](README.assets/image-20221122121413039.png)

@@ -822,3 +822,113 @@ Connection: keep-alive
 Location: https://www.cloudzun.com
 ```
 
+
+
+# 前后端分离
+
+创建测试用资源
+
+```bash
+kubectl create deploy backend-api --image=registry.cn-beijing.aliyuncs.com/dotbalo/nginx:backend-api -n  study-ingress
+kubectl expose deploy backend-api --port 80 -n study-ingress
+```
+
+
+
+查看服务
+
+```
+kubectl get svc -n study-ingress
+```
+
+```bash
+root@node1:~# kubectl get svc -n study-ingress
+NAME          TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)   AGE
+backend-api   ClusterIP   10.103.40.118    <none>        80/TCP    18m
+nginx         ClusterIP   10.102.210.108   <none>        80/TCP    3h44m
+```
+
+
+
+访问服务
+
+```bash
+ curl  10.103.40.118
+```
+
+```bash
+root@node1:~# curl  10.103.40.118
+<h1> backend for ingress rewrite </h1>
+
+<h2> Path: /api-a </h2>
+
+
+<a href="http://gaoxin.kubeasy.com"> Kubeasy </a>
+
+```
+
+
+
+创建rewrite策略
+
+```
+nano rewrite.yaml
+```
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+  name: backend-api
+  namespace: study-ingress
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: nginx.cloudzun.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: backend-api
+            port:
+              number: 80
+        path: /api-a(/|$)(.*)
+        pathType: ImplementationSpecific
+```
+
+```bash
+kubectl apply -f rewrite.yaml
+```
+
+
+
+查看ingress
+
+```bash
+root@node1:~# kubectl get ingress -n study-ingress
+```
+
+```bash
+root@node1:~# kubectl get ingress -n study-ingress
+NAME             CLASS   HOSTS                ADDRESS   PORTS   AGE
+backend-api      nginx   nginx.cloudzun.com             80      5m4s
+nginx-ingress    nginx   nginx.cloudzun.com             80      3h38m
+nginx-redirect   nginx   nginx.redirect.com             80      46m
+```
+
+
+
+尝试验证rewrite效果
+
+```bash
+root@node1:~# curl http://nginx.cloudzun.com/api-a
+<h1> backend for ingress rewrite </h1>
+
+<h2> Path: /api-a </h2>
+
+
+<a href="http://gaoxin.kubeasy.com"> Kubeasy </a>
+```
+

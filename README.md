@@ -826,6 +826,8 @@ Location: https://www.cloudzun.com
 
 # 前后端分离
 
+## Backend-API
+
 创建测试用资源
 
 ```bash
@@ -935,6 +937,238 @@ root@node1:~# curl http://nginx.cloudzun.com/api-a
 
 <a href="http://gaoxin.kubeasy.com"> Kubeasy </a>
 ```
+
+
+
+## 多路径发布
+
+
+
+创建命名空间
+
+```bash
+kubectl create ns ingress-basic
+```
+
+
+
+创建工作负载
+
+```bash
+nano aks-helloworld-one.yaml
+```
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aks-helloworld-one  
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aks-helloworld-one
+  template:
+    metadata:
+      labels:
+        app: aks-helloworld-one
+    spec:
+      containers:
+      - name: aks-helloworld-one
+        image: mcr.microsoft.com/azuredocs/aks-helloworld:v1
+        ports:
+        - containerPort: 80
+        env:
+        - name: TITLE
+          value: "Welcome to Kubernetes Service"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aks-helloworld-one  
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+  selector:
+    app: aks-helloworld-one
+```
+
+```bash
+nano aks-helloworld-two.yaml
+```
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aks-helloworld-two  
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aks-helloworld-two
+  template:
+    metadata:
+      labels:
+        app: aks-helloworld-two
+    spec:
+      containers:
+      - name: aks-helloworld-two
+        image: mcr.microsoft.com/azuredocs/aks-helloworld:v1
+        ports:
+        - containerPort: 80
+        env:
+        - name: TITLE
+          value: "K8S Ingress Demo"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aks-helloworld-two  
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+  selector:
+    app: aks-helloworld-two  
+```
+
+```bash
+kubectl apply -f aks-helloworld-one.yaml --namespace ingress-basic
+kubectl apply -f aks-helloworld-two.yaml --namespace ingress-basic
+```
+
+
+
+查看样例部署结果
+
+```bash
+kubectl get pod -n ingress-basic -o wide
+```
+
+```bash
+kubectl get svc -n ingress-basic -o wide
+```
+
+```bash
+root@node1:~# kubectl get pod -n ingress-basic -o wide
+NAME                                  READY   STATUS    RESTARTS   AGE     IP              NODE    NOMINATED NODE   READINESS GATES
+aks-helloworld-one-78c54cdb65-hxnn7   1/1     Running   0          8m13s   10.244.135.13   node3   <none>           <none>
+aks-helloworld-two-6658d485f5-rgnws   1/1     Running   0          8m10s   10.244.135.15   node3   <none>           <none>
+root@node1:~# kubectl get svc -n ingress-basic -o wide
+NAME                 TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)   AGE   SELECTOR
+aks-helloworld-one   ClusterIP   10.96.127.118    <none>        80/TCP    64m   app=aks-helloworld-one
+aks-helloworld-two   ClusterIP   10.107.242.113   <none>        80/TCP    64m   app=aks-helloworld-two
+```
+
+
+
+创建多路径发布的配置文件
+
+```bash
+nano aks-ingress.yaml
+```
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hello-world-ingress
+  namespace: ingress-basic
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: helloworld.cloudzun.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: aks-helloworld-one
+            port:
+              number: 80
+        path: /k8s(/|$)(.*)
+        pathType: ImplementationSpecific
+      - backend:
+          service:
+            name: aks-helloworld-two
+            port:
+              number: 80
+        path: /ingress(/|$)(.*)
+        pathType: ImplementationSpecific
+      - backend:
+          service:
+            name: aks-helloworld-one
+            port:
+              number: 80
+        path: /(.*)
+        pathType: ImplementationSpecific
+```
+
+```
+kubectl apply -f aks-ingress.yaml
+```
+
+
+
+查看ingress配置
+
+```bash
+kubectl describe ingress hello-world-ingress  -n ingress-basic
+```
+
+```bash
+root@node1:~#  kubectl describe ingress hello-world-ingress  -n ingress-basic
+Name:             hello-world-ingress
+Labels:           <none>
+Namespace:        ingress-basic
+Address:
+Default backend:  default-http-backend:80 (<error: endpoints "default-http-backend" not found>)
+Rules:
+  Host                     Path  Backends
+  ----                     ----  --------
+  helloworld.cloudzun.com
+                           /k8s(/|$)(.*)       aks-helloworld-one:80 (10.244.135.13:80)
+                           /ingress(/|$)(.*)   aks-helloworld-two:80 (10.244.135.15:80)
+                           /(.*)               aks-helloworld-one:80 (10.244.135.13:80)
+Annotations:               nginx.ingress.kubernetes.io/rewrite-target: /$1
+Events:
+  Type    Reason  Age                From                      Message
+  ----    ------  ----               ----                      -------
+  Normal  Sync    14s (x3 over 33m)  nginx-ingress-controller  Scheduled for sync
+  Normal  Sync    14s (x3 over 33m)  nginx-ingress-controller  Scheduled for sync
+```
+
+
+
+更新hosts
+
+```bash
+cat >> /etc/hosts << EOF
+192.168.1.232 helloworld.cloudzun.com
+192.168.1.233 helloworld.cloudzun.com
+EOF
+```
+
+
+
+浏览器测试
+
+
+
+![image-20221122182336969](README.assets/image-20221122182336969.png)
+
+
+
+![image-20221122182407352](README.assets/image-20221122182407352.png)
+
+
+
+
+
+![image-20221122182303834](README.assets/image-20221122182303834.png)
 
 
 
@@ -1155,3 +1389,7 @@ Location: https://nginx.cloudzun.com
 浏览器访问效果
 
 ![image-20221122155606218](README.assets/image-20221122155606218.png)
+
+
+
+![image-20221122164025938](README.assets/image-20221122164025938.png)

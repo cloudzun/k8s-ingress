@@ -2,9 +2,9 @@
 
 
 
-现在helm项目
+下载helm项目
 
-```
+```bash
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
 helm repo update
 helm pull ingress-nginx/ingress-nginx 
@@ -14,7 +14,7 @@ helm pull ingress-nginx/ingress-nginx
 
 编辑value.yaml
 
-```
+```bash
 tar xf ingress-nginx-4.4.0.tgz
 cd ingress-nginx/
 nano value.yaml
@@ -717,3 +717,108 @@ root@node1:~# curl http://httpbin.cloudzun.com/status/418
 浏览器上访问
 
 ![image-20221122121413039](README.assets/image-20221122121413039.png)
+
+# 域名重定向
+
+
+
+创建yaml文件
+
+```bash
+nano redirect.yaml
+```
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/permanent-redirect: https://www.cloudzun.com
+    nginx.ingress.kubernetes.io/permanent-redirect-code: '308'
+  name: nginx-redirect
+  namespace: study-ingress
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: nginx.redirect.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: nginx
+            port:
+              number: 80
+        path: /
+        pathType: ImplementationSpecific
+```
+
+```bash
+kubectl apply -f redirect.yaml
+```
+
+
+
+查看ingress
+
+```bash
+kubectl describe ingress nginx-redirect  -n study-ingress
+```
+
+```bash
+root@node1:~# kubectl describe ingress nginx-redirect  -n study-ingress
+Name:             nginx-redirect
+Labels:           <none>
+Namespace:        study-ingress
+Address:
+Default backend:  default-http-backend:80 (<error: endpoints "default-http-backend" not found>)
+Rules:
+  Host                Path  Backends
+  ----                ----  --------
+  nginx.redirect.com
+                      /   nginx:80 (10.244.166.183:80)
+Annotations:          nginx.ingress.kubernetes.io/permanent-redirect: https://www.cloudzun.com
+                      nginx.ingress.kubernetes.io/permanent-redirect-code: 308
+Events:
+  Type    Reason  Age   From                      Message
+  ----    ------  ----  ----                      -------
+  Normal  Sync    82s   nginx-ingress-controller  Scheduled for sync
+  Normal  Sync    82s   nginx-ingress-controller  Scheduled for sync
+```
+
+
+
+更新hosts
+
+```
+cat >> /etc/hosts << EOF
+192.168.1.232 nginx.redirect.com
+192.168.1.233 nginx.redirect.com
+EOF
+```
+
+
+
+尝试从node上进行测试
+
+```bash
+curl -I nginx.redirect.com
+```
+
+```bash
+root@node1:~# curl nginx.redirect.com
+<html>
+<head><title>308 Permanent Redirect</title></head>
+<body>
+<center><h1>308 Permanent Redirect</h1></center>
+<hr><center>nginx</center>
+</body>
+</html>
+root@node1:~# curl -I nginx.redirect.com
+HTTP/1.1 308 Permanent Redirect
+Date: Tue, 22 Nov 2022 05:47:31 GMT
+Content-Type: text/html
+Content-Length: 164
+Connection: keep-alive
+Location: https://www.cloudzun.com
+```
+

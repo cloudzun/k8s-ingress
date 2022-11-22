@@ -1047,3 +1047,111 @@ root@node1:~/ingress-nginx# curl http://nginx.cloudzun.com/api-b
 default backend - 404root@node1:~/ingress-nginx#
 ```
 
+
+
+# 启用SSL
+
+创建证书和secret
+
+```bash
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout tls.key -out tls.crt -subj "/CN=nginx.cloudzun.com"
+
+kubectl create secret tls ca-secret --key tls.key --cert tls.crt -n study-ingress
+```
+
+```bash
+root@node1:~# openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout tls.key -out tls.crt -subj "/CN=nginx.cloudzun.com"
+Generating a RSA private key
+..........................................................................................................................................................+++++
+......................................................................+++++
+writing new private key to 'tls.key'
+-----
+root@node1:~# kubectl create secret tls ca-secret --key tls.key --cert tls.crt -n study-ingress
+secret/ca-secret created
+
+```
+
+
+
+```bash
+root@node1:~# kubectl get secret -n study-ingress
+NAME                  TYPE                                  DATA   AGE
+ca-secret             kubernetes.io/tls                     2      32s
+default-token-zmjwg   kubernetes.io/service-account-token   3      5h2m
+root@node1:~# kubectl get secret ca-secret  -n study-ingress
+NAME        TYPE                DATA   AGE
+ca-secret   kubernetes.io/tls   2      41s
+root@node1:~# kubectl describe secret ca-secret  -n study-ingress
+Name:         ca-secret
+Namespace:    study-ingress
+Labels:       <none>
+Annotations:  <none>
+
+Type:  kubernetes.io/tls
+
+Data
+====
+tls.crt:  1139 bytes
+tls.key:  1704 bytes
+```
+
+
+
+编辑配置文件并为nginx.cloudzun.com 启用SSL
+
+```bash
+nano ingress-ssl.yaml
+```
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  creationTimestamp: null
+  name: nginx-ingress
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: nginx.cloudzun.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: nginx
+            port:
+              number: 80
+        path: /
+        pathType: ImplementationSpecific
+  tls:
+  - hosts:
+    - nginx.test.com
+    secretName: ca-secret
+```
+
+```bash
+kubectl apply -f ingress-ssl.yaml
+```
+
+
+
+尝试在node上进行访问
+
+```bash
+curl http://nginx.cloudzun.com -I
+```
+
+```bash
+root@node1:~# curl http://nginx.cloudzun.com -I
+HTTP/1.1 308 Permanent Redirect
+Date: Tue, 22 Nov 2022 07:53:13 GMT
+Content-Type: text/html
+Content-Length: 164
+Connection: keep-alive
+Location: https://nginx.cloudzun.com
+```
+
+
+
+浏览器访问效果
+
+![image-20221122155606218](README.assets/image-20221122155606218.png)

@@ -142,14 +142,14 @@ nginx   k8s.io/ingress-nginx   <none>       35m
 
 
 ```bash
-kubectl get pod -n ingress-nginx
+kubectl get pod -n ingress-nginx -o wide
 ```
 
 ```bash
-root@node1:~/ingress-nginx# kubectl get pod -n ingress-nginx
-NAME                             READY   STATUS    RESTARTS   AGE
-ingress-nginx-controller-btszm   1/1     Running   0          40m
-ingress-nginx-controller-zchpt   1/1     Running   0          40m
+root@node1:~/ingress-nginx# kubectl get pod -n ingress-nginx -o wide
+NAME                             READY   STATUS    RESTARTS   AGE   IP              NODE    NOMINATED NODE   READINESS GATES
+ingress-nginx-controller-btszm   1/1     Running   0          64m   192.168.1.233   node3   <none>           <none>
+ingress-nginx-controller-zchpt   1/1     Running   0          64m   192.168.1.232   node2   <none>           <none>
 ```
 
 

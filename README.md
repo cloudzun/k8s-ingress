@@ -907,7 +907,7 @@ kubectl apply -f rewrite.yaml
 查看ingress
 
 ```bash
-root@node1:~# kubectl get ingress -n study-ingress
+kubectl get ingress -n study-ingress
 ```
 
 ```bash
@@ -923,6 +923,10 @@ nginx-redirect   nginx   nginx.redirect.com             80      46m
 尝试验证rewrite效果
 
 ```bash
+ curl http://nginx.cloudzun.com/api-a
+```
+
+```bash
 root@node1:~# curl http://nginx.cloudzun.com/api-a
 <h1> backend for ingress rewrite </h1>
 
@@ -930,5 +934,116 @@ root@node1:~# curl http://nginx.cloudzun.com/api-a
 
 
 <a href="http://gaoxin.kubeasy.com"> Kubeasy </a>
+```
+
+
+
+# 定制错误代码页面
+
+
+
+修改value文件
+
+```bash
+nano values.yaml
+```
+
+```yaml
+## Default 404 backend
+##
+defaultBackend:
+  ##
+  enabled: true #改为true
+
+  name: defaultbackend
+  image:
+    registry: registry.k8s.io # 自定义页面所对应的映像库
+    image: defaultbackend-amd64
+```
+
+```yaml
+  # -- Will add custom configuration options to Nginx https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/config>
+  config: # 增加以下三行内容
+    apiVersion: v1
+    client_max_body_size: 20m
+    custom-http-errors: "404,415,503"
+```
+
+​		建议使用 config: {} 进行查找
+
+```bash
+helm upgrade ingress-nginx -n ingress-nginx .
+```
+
+
+
+查看pod
+
+```
+kubectl get pod -n ingress-nginx
+```
+
+```bash
+root@node1:~/ingress-nginx# kubectl get pod -n ingress-nginx
+NAME                                            READY   STATUS    RESTARTS   AGE
+ingress-nginx-controller-gqxk9                  1/1     Running   0          19m
+ingress-nginx-controller-m94q7                  1/1     Running   0          20m
+ingress-nginx-defaultbackend-5fb7c69544-p2mm8   1/1     Running   0          20m
+```
+
+​		注意: 此处多了一个自定义报错页面对应的pod
+
+查看配置文件
+
+```bash
+kubectl get cm -n ingress-nginx
+```
+
+```bash
+root@node1:~/ingress-nginx# kubectl get cm -n ingress-nginx
+NAME                       DATA   AGE
+ingress-nginx-controller   4      3h45m
+kube-root-ca.crt           1      3h45m
+```
+
+```bash
+kubectl get cm -n ingress-nginx ingress-nginx-controller -o yaml
+```
+
+```bash
+root@node1:~/ingress-nginx# kubectl get cm -n ingress-nginx ingress-nginx-controller -o yaml
+apiVersion: v1
+data:
+  allow-snippet-annotations: "true"
+  apiVersion: v1
+  client_max_body_size: 20m
+  custom-http-errors: 404,415,503
+kind: ConfigMap
+metadata:
+  annotations:
+    meta.helm.sh/release-name: ingress-nginx
+    meta.helm.sh/release-namespace: ingress-nginx
+  creationTimestamp: "2022-11-22T03:38:18Z"
+  labels:
+    app.kubernetes.io/component: controller
+    app.kubernetes.io/instance: ingress-nginx
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/part-of: ingress-nginx
+    app.kubernetes.io/version: 1.5.1
+    helm.sh/chart: ingress-nginx-4.4.0
+  name: ingress-nginx-controller
+  namespace: ingress-nginx
+  resourceVersion: "534515"
+  uid: 374d38a5-0e9e-4e9c-8bdf-1dcae88f0c1e
+```
+
+
+
+尝试访问某个不存在的页面
+
+```bash
+root@node1:~/ingress-nginx# curl http://nginx.cloudzun.com/api-b
+default backend - 404root@node1:~/ingress-nginx#
 ```
 

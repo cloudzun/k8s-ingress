@@ -826,7 +826,7 @@ Location: https://www.cloudzun.com
 
 # 前后端分离
 
-## Backend-API
+Backend-API
 
 创建测试用资源
 
@@ -940,7 +940,7 @@ root@node1:~# curl http://nginx.cloudzun.com/api-a
 
 
 
-## 多路径发布
+# 多路径发布
 
 
 
@@ -1393,3 +1393,146 @@ Location: https://nginx.cloudzun.com
 
 
 ![image-20221122164025938](README.assets/image-20221122164025938.png)
+
+
+
+# 匹配请求头
+
+创建phone工作负载
+
+```bash
+kubectl create deploy phone --image=registry.cn-beijing.aliyuncs.com/dotbalo/nginx:phone -n  study-ingress
+kubectl expose deploy phone --port 80 -n study-ingress
+kubectl create ingress phone --rule=m.cloudzun.com/*=phone:80 -n study-ingress
+```
+
+
+
+查看ingress
+
+```bash
+kubectl describe ingress phone  -n study-ingress
+```
+
+```bash
+root@node1:~# kubectl describe ingress phone  -n study-ingress
+Name:             phone
+Labels:           <none>
+Namespace:        study-ingress
+Address:
+Default backend:  default-http-backend:80 (<error: endpoints "default-http-backend" not found>)
+Rules:
+  Host            Path  Backends
+  ----            ----  --------
+  m.cloudzun.com
+                  /   phone:80 (10.244.104.19:80)
+Annotations:      <none>
+Events:
+  Type    Reason  Age   From                      Message
+  ----    ------  ----  ----                      -------
+  Normal  Sync    50m   nginx-ingress-controller  Scheduled for sync
+  Normal  Sync    50m   nginx-ingress-controller  Scheduled for sync
+```
+
+
+
+查看m站点效果
+
+![image-20221123095644254](README.assets/image-20221123095644254.png)
+
+创建laptop站点工作负载
+
+```bash
+kubectl create deploy laptop --image=registry.cn-beijing.aliyuncs.com/dotbalo/nginx:laptop -n  study-ingress
+kubectl expose deploy laptop --port 80 -n study-ingress
+```
+
+
+
+创建配置文件
+
+```
+nano mall-ingress.com
+```
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/server-snippet: |
+      set $agentflag 0;
+              if ($http_user_agent ~* "(Android|iPhone|Windows Phone|UC|Kindle)" ){
+                set $agentflag 1;
+              }
+              if ( $agentflag = 1 ) {
+                return 301 http://m.cloudzun.com;
+              }
+  name: laptop
+  namespace: study-ingress
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: mall.cloudzun.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: laptop
+            port:
+              number: 80
+        path: /
+        pathType: ImplementationSpecific
+```
+
+```
+kubectl apply -f mall-ingress.yaml
+```
+
+
+
+查看ingress
+
+```bash
+kubectl describe ingress laptop  -n study-ingress
+```
+
+```bash
+root@node1:~# kubectl describe ingress laptop  -n study-ingress
+Name:             laptop
+Labels:           <none>
+Namespace:        study-ingress
+Address:
+Default backend:  default-http-backend:80 (<error: endpoints "default-http-backend" not found>)
+Rules:
+  Host               Path  Backends
+  ----               ----  --------
+  mall.cloudzun.com
+                     /   laptop:80 (10.244.104.27:80)
+Annotations:         nginx.ingress.kubernetes.io/server-snippet:
+                       set $agentflag 0;
+                               if ($http_user_agent ~* "(Android|iPhone|Windows Phone|UC|Kindle)" ){
+                                 set $agentflag 1;
+                               }
+                               if ( $agentflag = 1 ) {
+                                 return 301 http://m.cloudzun.com;
+                               }
+Events:
+  Type    Reason  Age   From                      Message
+  ----    ------  ----  ----                      -------
+  Normal  Sync    28m   nginx-ingress-controller  Scheduled for sync
+  Normal  Sync    28m   nginx-ingress-controller  Scheduled for sync
+
+```
+
+
+
+使用浏览器查看
+
+![image-20221123095207546](README.assets/image-20221123095207546.png)
+
+
+
+模拟使用移动设备进行查看,会观测到站点自动跳转
+
+![image-20221123095340348](README.assets/image-20221123095340348.png)

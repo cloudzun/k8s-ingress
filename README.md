@@ -1789,3 +1789,14 @@ spec:
 
 
 
+被拒的效果
+
+```bash
+root@node1:~/ingress-nginx# curl auth.cloudzun.com -I
+HTTP/1.1 403 Forbidden
+Date: Wed, 23 Nov 2022 03:34:39 GMT
+Content-Type: text/html
+Content-Length: 146
+Connection: keep-alive
+```
+

@@ -1536,3 +1536,146 @@ Events:
 模拟使用移动设备进行查看,会观测到站点自动跳转
 
 ![image-20221123095340348](README.assets/image-20221123095340348.png)
+
+
+
+# 验证
+
+
+
+安装htpasswd
+
+```bash
+ apt install apache2-utils
+```
+
+
+
+创建凭据
+
+```bash
+htpasswd -c auth foo
+```
+
+```bash
+root@node1:~# htpasswd -c auth foo
+New password:
+Re-type new password:
+Adding password for user foo
+root@node1:~# cat auth
+foo:$apr1$UG6kz7LQ$bb/ylfyOLJyYi0fHjPFym0
+```
+
+
+
+创建包含凭据的secret
+
+```bash
+kubectl create secret generic basic-auth --from-file=auth -n study-ingress
+```
+
+
+
+查看secret
+
+```bash
+kubectl get secret basic-auth -n study-ingress -o yaml
+```
+
+```bash
+root@node1:~# kubectl get secret basic-auth -n study-ingress -o yaml
+apiVersion: v1
+data:
+  auth: Zm9vOiRhcHIxJFVHNmt6N0xRJGJiL3lsZnlPTEp5WWkwZkhqUEZ5bTAK
+kind: Secret
+metadata:
+  creationTimestamp: "2022-11-23T02:39:40Z"
+  name: basic-auth
+  namespace: study-ingress
+  resourceVersion: "618763"
+  uid: 75df728e-a51b-4f5a-b4da-d3d137c0d533
+type: Opaque
+root@node1:~# echo  Zm9vOiRhcHIxJFVHNmt6N0xRJGJiL3lsZnlPTEp5WWkwZkhqUEZ5bTAK | base64 -d
+foo:$apr1$UG6kz7LQ$bb/ylfyOLJyYi0fHjPFym0
+```
+
+
+
+创建yaml
+
+```
+nano auth-ingress.yaml
+```
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/auth-realm: Please Input Your Username and Password
+    nginx.ingress.kubernetes.io/auth-secret: basic-auth
+    nginx.ingress.kubernetes.io/auth-type: basic
+  name: ingress-with-auth
+  namespace: study-ingress
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: auth.cloudzun.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: nginx
+            port:
+              number: 80
+        path: /
+        pathType: ImplementationSpecific 
+```
+
+
+
+更新hosts
+
+```bash
+cat >> /etc/hosts << EOF
+192.168.1.232 auth.cloudzun.com
+192.168.1.233 auth.cloudzun.com
+EOF
+```
+
+
+
+尝试在node上进行访问
+
+```bash
+ curl auth.cloudzun.com
+```
+
+```bash
+ curl auth.cloudzun.com -I
+```
+
+```bash
+root@node1:~# curl auth.cloudzun.com
+<html>
+<head><title>401 Authorization Required</title></head>
+<body>
+<center><h1>401 Authorization Required</h1></center>
+<hr><center>nginx</center>
+</body>
+</html>
+root@node1:~# curl auth.cloudzun.com -I
+HTTP/1.1 401 Unauthorized
+Date: Wed, 23 Nov 2022 02:40:43 GMT
+Content-Type: text/html
+Content-Length: 172
+Connection: keep-alive
+WWW-Authenticate: Basic realm="Please Input Your Username and Password"
+```
+
+
+
+尝试使用浏览器进行访问
+
+![image-20221123104416415](README.assets/image-20221123104416415.png)
+

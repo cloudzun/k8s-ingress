@@ -1679,3 +1679,113 @@ WWW-Authenticate: Basic realm="Please Input Your Username and Password"
 
 ![image-20221123104416415](README.assets/image-20221123104416415.png)
 
+
+
+# 访问速率限制
+
+
+
+初始测速
+
+```bash
+ ab -c 10 -n 100 http://nginx.cloudzun.com/ | grep requests
+```
+
+```bash
+root@node1:~# ab -c 10 -n 100 http://nginx.cloudzun.com/ | grep requests
+Complete requests:      100
+Failed requests:        0
+Time per request:       1.078 [ms] (mean, across all concurrent requests)
+Percentage of the requests served within a certain time (ms)
+```
+
+
+
+修改yaml文件
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nginx-ingress
+  namespace: study-ingress
+  annotations: # 增加注释
+    nginx.ingress.kubernetes.io/limit-connections: "1" # 并发限制为1
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: nginx.cloudzun.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: nginx
+            port:
+              number: 80
+        path: /
+        pathType: ImplementationSpecific
+```
+
+
+
+再次测速
+
+```bash
+ ab -c 10 -n 100 http://nginx.cloudzun.com/ | grep requests
+```
+
+```bash
+root@node1:~# ab -c 10 -n 100 http://nginx.cloudzun.com/ | grep requests
+Complete requests:      100
+Failed requests:        70
+Time per request:       1.399 [ms] (mean, across all concurrent requests)
+Percentage of the requests served within a certain time (ms)
+```
+
+
+
+# 黑白名单(可选)
+
+黑名单属于在value里面的全局定义,配置范例如下
+
+```yaml
+  # -- Will add custom configuration options to Nginx https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/config>
+  config:
+    apiVersion: v1
+    client_max_body_size: 20m
+    custom-http-errors: "404,415,503"
+    block-cidrs: 192.168.1.233 #可以是主机或者网段
+```
+
+
+
+白名单定义在ingress层级,范例如下
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/auth-realm: Please Input Your Username and Password
+    nginx.ingress.kubernetes.io/auth-secret: basic-auth
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/whitelist-source-range: 192.168.1.8 #为测试方便一般指向宿主机
+  name: ingress-with-auth
+  namespace: study-ingress
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: auth.cloudzun.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: nginx
+            port:
+              number: 80
+        path: /
+        pathType: ImplementationSpecific
+```
+
+
+

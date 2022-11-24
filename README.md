@@ -601,122 +601,7 @@ root@node1:~# curl kata.cloudzun.com
 
 
 
-## Httpbin Service
 
-
-
-创建一体成型的yaml文件
-
-```bash
-nano httpbin-ingress.yaml
-```
-
-```yaml
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: httpbin
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: httpbin
-  labels:
-    app: httpbin
-    service: httpbin
-spec:
-  ports:
-  - name: http
-    port: 8000
-    targetPort: 80
-  selector:
-    app: httpbin
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: httpbin
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: httpbin
-      version: v1
-  template:
-    metadata:
-      labels:
-        app: httpbin
-        version: v1
-    spec:
-      serviceAccountName: httpbin
-      containers:
-      - image: docker.io/kennethreitz/httpbin
-        imagePullPolicy: IfNotPresent
-        name: httpbin
-        ports:
-        - containerPort: 80
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: httpbin-ingress
-spec:
-  ingressClassName: nginx
-  rules:
-  - host: httpbin.cloudzun.com
-    http:
-      paths:
-      - backend:
-          service:
-            name: httpbin
-            port:
-              number: 8000
-        path: /
-        pathType: ImplementationSpecific
-```
-
-```bash
-kubectl apply -f httpbin-ingress.yaml
-```
-
-
-
-更新hosts
-
-```bash
-cat >> /etc/hosts << EOF
-192.168.1.232 httpbin.cloudzun.com
-192.168.1.233 httpbin.cloudzun.com
-EOF
-```
-
-
-
-node上访问
-
-```bash
-curl http://httpbin.cloudzun.com/status/418
-```
-
-```bash
-root@node1:~# curl http://httpbin.cloudzun.com/status/418
-
-    -=[ teapot ]=-
-
-       _...._
-     .'  _ _ `.
-    | ."` ^ `". _,
-    \_;`"---"`|//
-      |       ;/
-      \_     _/
-        `"""`
-```
-
-
-
-浏览器上访问
-
-![image-20221122121413039](README.assets/image-20221122121413039.png)
 
 # 域名重定向
 
@@ -1285,6 +1170,8 @@ default backend - 404root@node1:~/ingress-nginx#
 
 # 启用SSL
 
+## 自签名证书
+
 创建证书和secret
 
 ```bash
@@ -1393,6 +1280,257 @@ Location: https://nginx.cloudzun.com
 
 
 ![image-20221122164025938](README.assets/image-20221122164025938.png)
+
+
+
+## 集成cert-manager
+
+安装cert-manager
+
+```bash
+kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.2.0/cert-manager.yaml
+```
+
+
+
+查看安装结果
+
+```bash
+root@node1:~# kubectl get pod -n cert-manager
+NAME                                       READY   STATUS    RESTARTS   AGE
+cert-manager-b4b465456-6fxnt               1/1     Running   0          3h54m
+cert-manager-cainjector-64d74f9c8f-z6fks   1/1     Running   0          3h54m
+cert-manager-webhook-66fff58cdf-r76z9      1/1     Running   0          3h54m
+```
+
+
+
+创建clusterissuer
+
+```bash
+nano cluster-issuer.yaml
+```
+
+```yaml
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned-cluster-issuer
+spec:
+  selfSigned: {}
+```
+
+```bash
+kubectl apply -f cluster-issuer.yaml
+```
+
+
+
+查看clusterissuer
+
+```bash
+kubectl get clusterissuer
+```
+
+```bash
+root@node1:~# kubectl get clusterissuer
+NAME                        READY   AGE
+selfsigned-cluster-issuer   True    41m
+```
+
+
+
+创建httpbin服务
+
+```yaml
+nano httpbin-ingress.yaml
+```
+
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: httpbin
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: httpbin
+  labels:
+    app: httpbin
+    service: httpbin
+spec:
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 80
+  selector:
+    app: httpbin
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: httpbin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: httpbin
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: httpbin
+        version: v1
+    spec:
+      serviceAccountName: httpbin
+      containers:
+      - image: docker.io/kennethreitz/httpbin
+        imagePullPolicy: IfNotPresent
+        name: httpbin
+        ports:
+        - containerPort: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: httpbin-ingress
+  annotations:
+    kubernetes.io/ingress.class: ingress
+    cert-manager.io/cluster-issuer: selfsigned-cluster-issuer
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: httpbin.cloudzun.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: httpbin
+            port:
+              number: 8000
+        path: /
+        pathType: ImplementationSpecific
+  tls:
+    - hosts:
+      - kata.cloudzun.com 
+      secretName: httpbin-tls
+```
+
+```
+kubectl apply -f httpbin.yaml
+```
+
+
+
+查看证书申请
+
+```bash
+kubectl get certificaterequest
+```
+
+```bash
+root@node1:~# kubectl get certificaterequest
+NAME                APPROVED   DENIED   READY   ISSUER                      REQUESTOR                                         AGE
+httpbin-tls-6qhlx   True                True    selfsigned-cluster-issuer   system:serviceaccount:cert-manager:cert-manager   33m
+```
+
+
+
+查看证书
+
+```bash
+kubectl get certificate
+```
+
+```bash
+root@node1:~# kubectl get certificate
+NAME          READY   SECRET        AGE
+httpbin-tls   True    httpbin-tls   28m
+```
+
+
+
+查看secret
+
+```
+kubectl get secret
+```
+
+```
+ kubectl describe  secret httpbin-tls
+```
+
+```bash
+root@node1:~# kubectl get secret
+NAME                  TYPE                                  DATA   AGE
+httpbin-tls           kubernetes.io/tls                     3      36m
+root@node1:~# kubectl describe  secret httpbin-tls
+Name:         httpbin-tls
+Namespace:    default
+Labels:       <none>
+Annotations:  cert-manager.io/alt-names: kata.cloudzun.com
+              cert-manager.io/certificate-name: httpbin-tls
+              cert-manager.io/common-name:
+              cert-manager.io/ip-sans:
+              cert-manager.io/issuer-group: cert-manager.io
+              cert-manager.io/issuer-kind: ClusterIssuer
+              cert-manager.io/issuer-name: selfsigned-cluster-issuer
+              cert-manager.io/uri-sans:
+
+Type:  kubernetes.io/tls
+
+Data
+====
+tls.crt:  1029 bytes
+tls.key:  1675 bytes
+ca.crt:   1029 bytes
+```
+
+
+
+更新hosts
+
+```bash
+cat >> /etc/hosts << EOF
+192.168.1.232 httpbin.cloudzun.com
+192.168.1.233 httpbin.cloudzun.com
+EOF
+```
+
+
+
+
+
+尝试在node上进行访问
+
+```bash
+root@node1:~# curl httpbin.cloudzun.com
+<html>
+<head><title>308 Permanent Redirect</title></head>
+<body>
+<center><h1>308 Permanent Redirect</h1></center>
+<hr><center>nginx</center>
+</body>
+</html>
+root@node1:~# curl httpbin.cloudzun.com -I
+HTTP/1.1 308 Permanent Redirect
+Date: Thu, 24 Nov 2022 10:42:23 GMT
+Content-Type: text/html
+Content-Length: 164
+Connection: keep-alive
+Location: https://httpbin.cloudzun.com
+```
+
+
+
+尝试在浏览器上访问
+
+![image-20221124184400687](README.assets/image-20221124184400687.png)
+
+
+
+![image-20221124184522830](README.assets/image-20221124184522830.png)
 
 
 

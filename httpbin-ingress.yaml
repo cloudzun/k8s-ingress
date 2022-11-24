@@ -46,6 +46,9 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: httpbin-ingress
+  annotations:
+    kubernetes.io/ingress.class: ingress
+    cert-manager.io/cluster-issuer: selfsigned-cluster-issuer
 spec:
   ingressClassName: nginx
   rules:
@@ -59,3 +62,8 @@ spec:
               number: 8000
         path: /
         pathType: ImplementationSpecific
+  tls:
+    - hosts:
+      - kata.cloudzun.com 
+      secretName: httpbin-tls
+      

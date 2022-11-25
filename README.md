@@ -1297,6 +1297,10 @@ kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.2
 查看安装结果
 
 ```bash
+kubectl get pod -n cert-manager
+```
+
+```bash
 root@node1:~# kubectl get pod -n cert-manager
 NAME                                       READY   STATUS    RESTARTS   AGE
 cert-manager-b4b465456-6fxnt               1/1     Running   0          3h54m

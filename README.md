@@ -193,7 +193,7 @@ root     1130900  0.0  0.0   8900   724 pts/0    S+   10:15   0:00 grep --color=
 
 
 
-# 使用Ingress Nginx发布单个web服务
+# 基本发布
 
 
 
@@ -421,8 +421,8 @@ Commercial support is available at
 
 ```bash
 cat >> /etc/hosts << EOF
-192.168.1.232	nginx.cloudzun.com
-192.168.1.233	nginx.cloudzun.com
+192.168.1.232 nginx.cloudzun.com
+192.168.1.233 nginx.cloudzun.com
 EOF
 ```
 
@@ -1194,14 +1194,15 @@ secret/ca-secret created
 
 
 
+查看secret细节
+
 ```bash
-root@node1:~# kubectl get secret -n study-ingress
-NAME                  TYPE                                  DATA   AGE
-ca-secret             kubernetes.io/tls                     2      32s
-default-token-zmjwg   kubernetes.io/service-account-token   3      5h2m
-root@node1:~# kubectl get secret ca-secret  -n study-ingress
-NAME        TYPE                DATA   AGE
-ca-secret   kubernetes.io/tls   2      41s
+kubectl describe secret ca-secret  -n study-ingress
+```
+
+
+
+```bash
 root@node1:~# kubectl describe secret ca-secret  -n study-ingress
 Name:         ca-secret
 Namespace:    study-ingress
@@ -1228,7 +1229,7 @@ nano ingress-ssl.yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  creationTimestamp: null
+  namespace: study-ingress
   name: nginx-ingress
 spec:
   ingressClassName: nginx
@@ -1500,8 +1501,6 @@ EOF
 
 
 
-
-
 尝试在node上进行访问
 
 ```bash
@@ -1531,6 +1530,86 @@ Location: https://httpbin.cloudzun.com
 
 
 ![image-20221124184522830](README.assets/image-20221124184522830.png)
+
+
+
+备注: cert-manager的ACME使用场景
+
+
+
+使用以下范例，创建certificate-issuer
+
+```
+nano certificate-issuer-prod.yaml
+```
+
+```yaml
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: info@cloudzun.com
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+```
+
+
+
+创建certificate-issuer
+
+```
+kubectl apply -f certificate-issuer-prod.yaml
+```
+
+使用以下范例创建ingress-with-tls
+
+```
+nano ingress-with-tls-prod.yaml
+```
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: simple-frontend-ingress
+  annotations:
+    kubernetes.io/ingress.class: ingress
+    cert-manager.io/issuer: letsencrypt-prod
+    cert-manager.io/acme-challenge-type: http01
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: katacoda # 替换服务名
+            port:
+              number: 80
+    host: kata.cloudzun.com #替换AG域名
+  tls:
+    - hosts:
+      - kata.cloudzun.com #替换AG域名
+      secretName: frontend-prod-tls
+```
+
+
+
+启用TLS
+
+```
+kubectl apply -f ingress-with-tls-prod.yaml
+```
+
+
 
 
 

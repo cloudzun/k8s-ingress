@@ -1289,7 +1289,7 @@ Location: https://nginx.cloudzun.com
 安装cert-manager
 
 ```bash
-kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.2.0/cert-manager.yaml
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.10.1/cert-manager.yaml
 ```
 
 

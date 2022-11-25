@@ -1401,7 +1401,7 @@ kind: Ingress
 metadata:
   name: httpbin-ingress
   annotations:
-    kubernetes.io/ingress.class: ingress
+    # kubernetes.io/ingress.class: ingress
     cert-manager.io/cluster-issuer: selfsigned-cluster-issuer
 spec:
   ingressClassName: nginx
@@ -1423,7 +1423,7 @@ spec:
 ```
 
 ```
-kubectl apply -f httpbin.yaml
+kubectl apply -f httpbin-ingress.yaml
 ```
 
 
@@ -1457,10 +1457,6 @@ httpbin-tls   True    httpbin-tls   28m
 
 
 查看secret
-
-```
-kubectl get secret
-```
 
 ```
  kubectl describe  secret httpbin-tls
@@ -1853,6 +1849,10 @@ spec:
         pathType: ImplementationSpecific 
 ```
 
+```bash
+kubectl apply -f auth-ingress.yaml
+```
+
 
 
 更新hosts
@@ -1924,6 +1924,10 @@ Percentage of the requests served within a certain time (ms)
 
 修改yaml文件
 
+```
+nano web-ingress.yaml
+```
+
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -1945,6 +1949,10 @@ spec:
               number: 80
         path: /
         pathType: ImplementationSpecific
+```
+
+```bash
+kubectl apply -f web-ingress.yaml
 ```
 
 

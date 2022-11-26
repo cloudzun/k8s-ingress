@@ -440,8 +440,6 @@ spec:
     spec:
       dnsPolicy: ClusterFirstWithHostNet #配合hostNetwork设置
       hostNetwork: true #启用在host上进行监听
-      nodeSelector: #设置节点相关性
-        ingress: 'true'
       containers:
       - args:
         - /nginx-ingress-controller
@@ -523,6 +521,7 @@ spec:
       dnsPolicy: ClusterFirst
       nodeSelector:
         kubernetes.io/os: linux
+        ingress: "true"
       serviceAccountName: ingress-nginx
       terminationGracePeriodSeconds: 300
       volumes:

@@ -1973,6 +1973,99 @@ Percentage of the requests served within a certain time (ms)
 
 
 
+# ingress-nginx的监控
+
+更新values文件并更新helm release
+
+```bash
+nano values.yaml
+```
+
+```yaml
+ metrics:
+    port: 10254
+    portName: metrics
+    # if this port is changed, change healthz-port: in extraArgs: accordingly
+    enabled: true # 设置为启用
+
+    service:
+      annotations:
+        prometheus.io/scrape: "true" #取消注释
+        prometheus.io/port: "10254" #取消注释
+```
+
+```
+helm upgrade ingress-nginx -n ingress-nginx .
+```
+
+
+
+查看metrics信息
+
+```bash
+curl -s "http://node2:10254/metrics" | tail -l
+```
+
+```bash
+root@node1:~# curl -s "http://node2:10254/metrics" | tail -l
+# TYPE process_virtual_memory_max_bytes gauge
+process_virtual_memory_max_bytes 1.8446744073709552e+19
+# HELP promhttp_metric_handler_requests_in_flight Current number of scrapes being served.
+# TYPE promhttp_metric_handler_requests_in_flight gauge
+promhttp_metric_handler_requests_in_flight 1
+# HELP promhttp_metric_handler_requests_total Total number of scrapes by HTTP status code.
+# TYPE promhttp_metric_handler_requests_total counter
+promhttp_metric_handler_requests_total{code="200"} 151
+promhttp_metric_handler_requests_total{code="500"} 0
+promhttp_metric_handler_requests_total{code="503"} 0
+```
+
+
+
+修改Prometheus静态配置文件,增加ingress相关条目, 并更新配置
+
+```bash
+nano prometheus-additional.yaml
+```
+
+```bash
+- job_name: nginx-ingress
+  metrics_path: /metrics
+  scrape_interval: 5s
+  static_configs:
+  - targets:
+    - 192.168.1.232:10254
+    - 192.168.1.233:10254
+```
+
+```bash
+kubectl create secret generic additional-configs --from-file=prometheus-additional.yaml --dry-run=client -o yaml | kubectl replace -f - -n monitoring
+```
+
+
+
+从Prometheus status-->configuration 页面上检查ingress配置项
+
+
+
+从Prometheus status-->targets 页面上检查ingress配置项
+
+
+
+从Prometheus status-->service discovery 页面上检查ingress配置项
+
+
+
+从Prometheus 首页尝试使用ingress相关指标进行查看
+
+
+
+加载9614 dashboard在grafana中查看ingress相关数据
+
+![image-20221126152004259](README.assets/image-20221126152004259.png)
+
+
+
 # 黑白名单(可选)
 
 黑名单属于在value里面的全局定义,配置范例如下

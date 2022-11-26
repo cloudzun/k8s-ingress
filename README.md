@@ -17,7 +17,7 @@ helm pull ingress-nginx/ingress-nginx
 ```bash
 tar xf ingress-nginx-4.4.0.tgz
 cd ingress-nginx/
-nano value.yaml
+nano values.yaml
 ```
 
 

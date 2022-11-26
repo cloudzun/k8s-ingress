@@ -2122,3 +2122,27 @@ Content-Length: 146
 Connection: keep-alive
 ```
 
+
+
+# 裸金属部署方法(可选)
+
+用于快速测试环境,和helm部署模式相比,采用deployment双实例方式部署,且未置默认ingressclass,其他配置相同
+
+节点打标签
+
+```bash
+kubectl label node node2 ingress=true
+kubectl label node node3 ingress=true
+```
+
+
+
+安装ingress-nginx
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/cloudzun/k8s-ingress/main/baremetal.yaml
+```
+
+
+
+注意:上述yaml文件基于https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.5.1/deploy/static/provider/baremetal/deploy.yaml 进行修改
